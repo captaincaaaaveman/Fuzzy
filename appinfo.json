@@ -1,0 +1,70 @@
+{
+    "appKeys": {
+        "KEY_CONDITIONS": 1,
+        "KEY_TEMPERATURE": 0
+    },
+    "capabilities": [
+        "location"
+    ],
+    "companyName": "Captaincaaveman",
+    "enableMultiJS": false,
+    "longName": "Fuzzy",
+    "projectType": "native",
+    "resources": {
+        "media": [
+            {
+                "characterRegex": "[a-z' \\-]",
+                "file": "fonts/opensans4",
+                "name": "FONT_OPENSANS_36",
+                "targetPlatforms": null,
+                "type": "font"
+            },
+            {
+                "characterRegex": "[a-z'\\- ]",
+                "file": "fonts/opensans3",
+                "name": "FONT_OPENSANS_40",
+                "targetPlatforms": null,
+                "type": "font"
+            },
+            {
+                "characterRegex": "[a-z'\\- ]",
+                "file": "fonts/opensans2",
+                "name": "FONT_OPENSANS_48",
+                "targetPlatforms": null,
+                "type": "font"
+            },
+            {
+                "characterRegex": "[a-z'\\- ]",
+                "file": "fonts/opensans",
+                "name": "FONT_OPENSANS_30",
+                "targetPlatforms": null,
+                "type": "font"
+            },
+            {
+                "file": "images/screenshot",
+                "menuIcon": true,
+                "name": "SCREENSHOT",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            },
+            {
+                "file": "images/modern_decimal_background.png",
+                "name": "BACKGROUND_CLOCKFACE",
+                "targetPlatforms": null,
+                "type": "bitmap"
+            }
+        ]
+    },
+    "sdkVersion": "3",
+    "shortName": "Fuzzy",
+    "targetPlatforms": [
+        "aplite",
+        "basalt",
+        "chalk"
+    ],
+    "uuid": "ecc8f112-318f-4ee2-be11-53c63b8a1139",
+    "versionLabel": "1.0",
+    "watchapp": {
+        "watchface": true
+    }
+}
