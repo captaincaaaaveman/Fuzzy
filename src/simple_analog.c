@@ -2,10 +2,28 @@
 #include "num2words.h"
 
 #define BUFFER_SIZE 86
+#define KEY_TEMPERATURE 0
+#define KEY_CONDITIONS 1
+#define KEY_SXX 2
+#define KEY_FTSE 3
 
 static Window *s_main_window;
 static TextLayer *s_text_layer;
+static TextLayer *s_stock_layer;
+static TextLayer *s_ftse_layer;
+static TextLayer *s_bottom_layer;
+static TextLayer *s_temp_layer;
+static Layer *s_battery_layer;
 static char s_buffer[BUFFER_SIZE];
+static char s_buffer2[BUFFER_SIZE];
+
+static int s_battery_level;
+
+static char temperature_buffer[8];
+static char conditions_buffer[32];
+static char sxx_buffer[32];
+static char ftse_buffer[32];
+static char weather_layer_buffer[32];
 
 static GFont s_font;
 static GFont s_font_36;
@@ -13,26 +31,49 @@ static GFont s_font_40;
 static GFont s_font_48;
 static GRect bounds;
 
+static void battery_callback(BatteryChargeState state) {
+  // Record the new battery level
+  s_battery_level = state.charge_percent;
+
+  layer_mark_dirty(s_battery_layer);
+}
+
+static void hide_big_screen() {
+  printf("Hiding big screen");
+  text_layer_set_background_color(s_temp_layer, GColorClear);
+  text_layer_set_text(s_temp_layer,"");
+}
+
+static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
+  printf("Showing big screen");
+  text_layer_set_background_color(s_temp_layer, GColorBlack);
+  text_layer_set_text(s_temp_layer, conditions_buffer);
+  
+  app_timer_register(3000, hide_big_screen, NULL );
+}
+
+
+static void battery_update_proc(Layer *layer, GContext *ctx) {
+  GRect bounds = layer_get_bounds(layer);
+
+  // Find the width of the bar
+  int width = (int)(float)(((float)s_battery_level / 100.0F) * 143.0F);
+
+  // Draw the background
+  graphics_context_set_fill_color(ctx, GColorBlack);
+  graphics_fill_rect(ctx, bounds, 0, GCornerNone);
+
+  // Draw the bar
+  graphics_context_set_fill_color(ctx, GColorWhite);
+  graphics_fill_rect(ctx, GRect(0, 0, width, bounds.size.h), 0, GCornerNone);
+}
+
 static void update_time(struct tm *t) {
   fuzzy_time_to_words(t->tm_hour, t->tm_min, s_buffer, BUFFER_SIZE);
 
   text_layer_set_text(s_text_layer, s_buffer);
   
-//   if ( strlen(s_buffer) < 16 )
-//   {
-//      APP_LOG(APP_LOG_LEVEL_ERROR, "Less than 16!");
-   text_layer_set_font(s_text_layer, s_font_48);
-//   }
-//   else if ( strlen(s_buffer) < 25 )
-//   {
-//      APP_LOG(APP_LOG_LEVEL_ERROR, "Less than 25!");
-//     text_layer_set_font(s_text_layer, s_font_40);
-//   }
-//   else
-//   {
-//      APP_LOG(APP_LOG_LEVEL_ERROR, "More than 24!");
-//     text_layer_set_font(s_text_layer, s_font);
-//   }
+  text_layer_set_font(s_text_layer, s_font_48);
   
   int a = graphics_text_layout_get_content_size(s_buffer, 
                                                 s_font_48, 
@@ -43,7 +84,7 @@ static void update_time(struct tm *t) {
   printf("The required height is %d", a);
   printf("The available height is %d", bounds.size.h);
   
-  if ( a > bounds.size.h ) {
+  if ( a > (bounds.size.h-10) ) {
     printf("too big");
     text_layer_set_font(s_text_layer, s_font_40);
 
@@ -56,7 +97,7 @@ static void update_time(struct tm *t) {
     printf("The required height is %d", a);
     printf("The available height is %d", bounds.size.h);
 
-    if ( a > bounds.size.h ) {
+    if ( a > (bounds.size.h-10) ) {
       printf("still too big");
 
       text_layer_set_font(s_text_layer, s_font_36);
@@ -70,7 +111,7 @@ static void update_time(struct tm *t) {
       printf("The required height is %d", a);
       printf("The available height is %d", bounds.size.h);
 
-      if ( a > bounds.size.h ) {
+      if ( a > (bounds.size.h-10) ) {
         printf("still still too big");
 
         text_layer_set_font(s_text_layer, s_font);
@@ -81,17 +122,32 @@ static void update_time(struct tm *t) {
       
   }
   
-  
-//                                         text_layer_get_content_size(s_text_layer) 
-//                                                         , GTextOverflowModeFill, GTextAlignmentLeft);
-  
   APP_LOG(APP_LOG_LEVEL_ERROR, text_layer_get_text(s_text_layer));
+  //text_layer_set_text(s_stock_layer, "Loading...");
 
+ 
+  strftime(s_buffer2, 30, "%a %e %b", t);
+  text_layer_set_text(s_bottom_layer, s_buffer2);
 
 }
 
-static void handle_minute_tick(struct tm *tick_time, TimeUnits units_changed) {
-  update_time(tick_time);
+static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
+  if(tick_time->tm_sec % 15 == 0) {
+    update_time(tick_time);
+  }
+  if(tick_time->tm_sec % 30 == 0) {
+    // Begin dictionary
+    DictionaryIterator *iter;
+    app_message_outbox_begin(&iter);
+
+    // Add a key-value pair
+    dict_write_uint8(iter, 0, 0);
+
+    // Send the message!
+    app_message_outbox_send();
+}
+
+  
 }
 
 
@@ -100,7 +156,7 @@ static void main_window_load(Window *window) {
   Layer *window_layer = window_get_root_layer(window);
   bounds = layer_get_frame(window_layer);
 
-  s_text_layer = text_layer_create(GRect(0, 0, bounds.size.w, bounds.size.h - 0));
+  s_text_layer = text_layer_create(GRect(0, 10, bounds.size.w, bounds.size.h - 10));
   text_layer_set_background_color(s_text_layer, GColorBlack);
   text_layer_set_text_color(s_text_layer, GColorWhite);
 
@@ -119,16 +175,109 @@ static void main_window_load(Window *window) {
   text_layer_set_font(s_text_layer, s_font);
   layer_add_child(window_layer, text_layer_get_layer(s_text_layer));
 
+  s_stock_layer = text_layer_create(GRect(0, 0, bounds.size.w, 20));
+  text_layer_set_background_color(s_stock_layer, GColorClear);
+  text_layer_set_text_color(s_stock_layer, GColorWhite);
+  text_layer_set_font(s_stock_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  text_layer_set_text_alignment(s_stock_layer, GTextAlignmentRight);
+  text_layer_set_text(s_stock_layer, "...");
+
+  layer_add_child(window_layer, text_layer_get_layer(s_stock_layer));
+
+  s_ftse_layer = text_layer_create(GRect(0, 0, bounds.size.w, 20));
+  text_layer_set_background_color(s_ftse_layer, GColorClear);
+  text_layer_set_text_color(s_ftse_layer, GColorWhite);
+  text_layer_set_font(s_ftse_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  text_layer_set_text_alignment(s_ftse_layer, GTextAlignmentLeft);
+  text_layer_set_text(s_ftse_layer, "...");
+
+  layer_add_child(window_layer, text_layer_get_layer(s_ftse_layer));
+
+  s_bottom_layer = text_layer_create(GRect(0, bounds.size.h-18, bounds.size.w, 18));
+  text_layer_set_background_color(s_bottom_layer, GColorClear);
+  text_layer_set_text_color(s_bottom_layer, GColorWhite);
+  text_layer_set_font(s_bottom_layer, fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD));
+  text_layer_set_text_alignment(s_bottom_layer, GTextAlignmentCenter);
+  text_layer_set_text(s_bottom_layer, "...");
+
+  layer_add_child(window_layer, text_layer_get_layer(s_bottom_layer));
+
+  s_temp_layer = text_layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
+  text_layer_set_background_color(s_temp_layer, GColorClear);
+  text_layer_set_text_color(s_temp_layer, GColorWhite);
+  text_layer_set_font(s_temp_layer, s_font_48);
+  text_layer_set_text_alignment(s_temp_layer, GTextAlignmentLeft);
+
+  layer_add_child(window_layer, text_layer_get_layer(s_temp_layer));
+  
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
   update_time(t);
 
-  tick_timer_service_subscribe(MINUTE_UNIT, &handle_minute_tick);
+  // Create battery meter Layer
+  s_battery_layer = layer_create(GRect(0, 0, bounds.size.w, 2));
+  layer_set_update_proc(s_battery_layer, battery_update_proc);
+
+  printf("****** The full width %d",  bounds.size.w);
+  
+  // Add to Window
+  layer_add_child(window_get_root_layer(window), s_battery_layer);
+  
+  tick_timer_service_subscribe(SECOND_UNIT, &handle_second_tick);
+
+  accel_tap_service_subscribe(accel_tap_handler);
 }
 
 static void main_window_unload(Window *window) {
   text_layer_destroy(s_text_layer);
+  text_layer_destroy(s_stock_layer);
+  text_layer_destroy(s_ftse_layer);
+  text_layer_destroy(s_bottom_layer);
+  layer_destroy(s_battery_layer);
 }
+
+
+static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
+  
+  // Read tuples for data
+Tuple *temp_tuple = dict_find(iterator, KEY_TEMPERATURE);
+Tuple *conditions_tuple = dict_find(iterator, KEY_CONDITIONS);
+Tuple *sxx_tuple = dict_find(iterator, KEY_SXX);
+Tuple *ftse_tuple = dict_find(iterator, KEY_FTSE);
+
+// If all data is available, use it
+if(temp_tuple && conditions_tuple) {
+ // snprintf(temperature_buffer, sizeof(temperature_buffer), "%s", temp_tuple->value->cstring);
+  snprintf(conditions_buffer, sizeof(conditions_buffer), "%s", conditions_tuple->value->cstring);
+  
+  // Assemble full string and display
+ // snprintf(weather_layer_buffer, sizeof(weather_layer_buffer), "%s, %s", temperature_buffer, conditions_buffer);
+  text_layer_set_text(s_stock_layer, conditions_buffer);
+//   text_layer_set_text(s_stock_layer, conditions_buffer);
+
+}
+
+  if(ftse_tuple) {
+    snprintf(ftse_buffer, sizeof(conditions_buffer), "%s", ftse_tuple->value->cstring);
+  
+    text_layer_set_text(s_ftse_layer, ftse_buffer);
+  }
+
+}
+  
+static void inbox_dropped_callback(AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Message dropped!");
+}
+
+static void outbox_failed_callback(DictionaryIterator *iterator, AppMessageResult reason, void *context) {
+  APP_LOG(APP_LOG_LEVEL_ERROR, "Outbox send failed!");
+}
+
+static void outbox_sent_callback(DictionaryIterator *iterator, void *context) {
+  APP_LOG(APP_LOG_LEVEL_INFO, "Outbox send success!");
+}
+
+
 
 static void init() {
   s_main_window = window_create();
@@ -138,6 +287,25 @@ static void init() {
     .unload = main_window_unload,
   });
   window_stack_push(s_main_window, true);
+  
+  
+    // Register callbacks
+  app_message_register_inbox_received(inbox_received_callback);
+  // Register for battery level updates
+  battery_state_service_subscribe(battery_callback);
+  
+  // Open AppMessage
+  const int inbox_size = 128;
+  const int outbox_size = 128;
+  app_message_open(inbox_size, outbox_size);
+
+  app_message_register_inbox_dropped(inbox_dropped_callback);
+  app_message_register_outbox_failed(outbox_failed_callback);
+  app_message_register_outbox_sent(outbox_sent_callback);
+
+  battery_callback(battery_state_service_peek());
+
+  
 }
 
 static void deinit() {

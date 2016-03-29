@@ -1,10 +1,12 @@
 {
     "appKeys": {
         "KEY_CONDITIONS": 1,
+        "KEY_FTSE": 3,
+        "KEY_SXX": 2,
         "KEY_TEMPERATURE": 0
     },
     "capabilities": [
-        "location"
+        ""
     ],
     "companyName": "Captaincaaveman",
     "enableMultiJS": false,
@@ -27,7 +29,7 @@
                 "type": "font"
             },
             {
-                "characterRegex": "[a-z'\\- ]",
+                "characterRegex": "[a-z'\\- 1234567890.]",
                 "file": "fonts/opensans2",
                 "name": "FONT_OPENSANS_48",
                 "targetPlatforms": null,
