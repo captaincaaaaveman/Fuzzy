@@ -13,23 +13,25 @@ static TextLayer *s_stock_layer;
 static TextLayer *s_ftse_layer;
 static TextLayer *s_bottom_layer;
 static TextLayer *s_temp_layer;
+static TextLayer *s_where_is_your_phone_layer;
 static Layer *s_battery_layer;
 static char s_buffer[BUFFER_SIZE];
 static char s_buffer2[BUFFER_SIZE];
 
 static int s_battery_level;
 
-static char temperature_buffer[8];
-static char conditions_buffer[32];
 static char sxx_buffer[32];
 static char ftse_buffer[32];
-static char weather_layer_buffer[32];
+static char str1[65];
 
 static GFont s_font;
 static GFont s_font_36;
 static GFont s_font_40;
 static GFont s_font_48;
 static GRect bounds;
+
+
+
 
 static void battery_callback(BatteryChargeState state) {
   // Record the new battery level
@@ -42,14 +44,39 @@ static void hide_big_screen() {
   printf("Hiding big screen");
   text_layer_set_background_color(s_temp_layer, GColorClear);
   text_layer_set_text(s_temp_layer,"");
+
+  text_layer_set_text(s_where_is_your_phone_layer, "");
+  text_layer_set_background_color(s_where_is_your_phone_layer, GColorClear);
+}
+
+static void show_where_is_your_phone_screen() {
+  text_layer_set_text(s_where_is_your_phone_layer, "Where is your phone?");
+
+  text_layer_set_background_color(s_where_is_your_phone_layer, GColorBlack);
+  text_layer_set_text_color(s_where_is_your_phone_layer, GColorWhite);
+
+  app_timer_register(4000, hide_big_screen, NULL );
+}
+
+static void bluetooth_callback(bool connected) {
+  if(!connected) {
+    vibes_double_pulse();
+    show_where_is_your_phone_screen();
+  }
 }
 
 static void accel_tap_handler(AccelAxisType axis, int32_t direction) {
-  printf("Showing big screen");
-  text_layer_set_background_color(s_temp_layer, GColorBlack);
-  text_layer_set_text(s_temp_layer, conditions_buffer);
-  
-  app_timer_register(3000, hide_big_screen, NULL );
+
+  // Begin dictionary
+  DictionaryIterator *iter;
+  app_message_outbox_begin(&iter);
+
+  // Add a key-value pair
+  dict_write_uint8(iter, 0, 0);
+
+  // Send the message!
+  app_message_outbox_send();
+
 }
 
 
@@ -135,19 +162,6 @@ static void handle_second_tick(struct tm *tick_time, TimeUnits units_changed) {
   if(tick_time->tm_sec % 15 == 0) {
     update_time(tick_time);
   }
-  if(tick_time->tm_sec % 30 == 0) {
-    // Begin dictionary
-    DictionaryIterator *iter;
-    app_message_outbox_begin(&iter);
-
-    // Add a key-value pair
-    dict_write_uint8(iter, 0, 0);
-
-    // Send the message!
-    app_message_outbox_send();
-}
-
-  
 }
 
 
@@ -205,10 +219,20 @@ static void main_window_load(Window *window) {
   s_temp_layer = text_layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
   text_layer_set_background_color(s_temp_layer, GColorClear);
   text_layer_set_text_color(s_temp_layer, GColorWhite);
-  text_layer_set_font(s_temp_layer, s_font_48);
+  text_layer_set_font(s_temp_layer, s_font_40);
   text_layer_set_text_alignment(s_temp_layer, GTextAlignmentLeft);
 
   layer_add_child(window_layer, text_layer_get_layer(s_temp_layer));
+  
+  s_where_is_your_phone_layer = text_layer_create(GRect(0, 0, bounds.size.w, bounds.size.h));
+  text_layer_set_background_color(s_where_is_your_phone_layer, GColorClear);
+  text_layer_set_text_color(s_where_is_your_phone_layer, GColorClear);
+  text_layer_set_font(s_where_is_your_phone_layer, s_font_36);
+  text_layer_set_text_alignment(s_where_is_your_phone_layer, GTextAlignmentLeft);
+
+  layer_add_child(window_layer, text_layer_get_layer(s_where_is_your_phone_layer));
+  
+  
   
   time_t now = time(NULL);
   struct tm *t = localtime(&now);
@@ -226,6 +250,11 @@ static void main_window_load(Window *window) {
   tick_timer_service_subscribe(SECOND_UNIT, &handle_second_tick);
 
   accel_tap_service_subscribe(accel_tap_handler);
+
+  // Register for Bluetooth connection updates
+  connection_service_subscribe((ConnectionHandlers) {
+    .pebble_app_connection_handler = bluetooth_callback
+  });
 }
 
 static void main_window_unload(Window *window) {
@@ -240,28 +269,38 @@ static void main_window_unload(Window *window) {
 static void inbox_received_callback(DictionaryIterator *iterator, void *context) {
   
   // Read tuples for data
-Tuple *temp_tuple = dict_find(iterator, KEY_TEMPERATURE);
-Tuple *conditions_tuple = dict_find(iterator, KEY_CONDITIONS);
 Tuple *sxx_tuple = dict_find(iterator, KEY_SXX);
 Tuple *ftse_tuple = dict_find(iterator, KEY_FTSE);
 
 // If all data is available, use it
-if(temp_tuple && conditions_tuple) {
- // snprintf(temperature_buffer, sizeof(temperature_buffer), "%s", temp_tuple->value->cstring);
-  snprintf(conditions_buffer, sizeof(conditions_buffer), "%s", conditions_tuple->value->cstring);
+if (sxx_tuple) {
+  snprintf(sxx_buffer, sizeof(sxx_buffer), "%s", sxx_tuple->value->cstring);
   
-  // Assemble full string and display
- // snprintf(weather_layer_buffer, sizeof(weather_layer_buffer), "%s, %s", temperature_buffer, conditions_buffer);
-  text_layer_set_text(s_stock_layer, conditions_buffer);
-//   text_layer_set_text(s_stock_layer, conditions_buffer);
+  text_layer_set_text(s_stock_layer, sxx_buffer);
 
 }
 
   if(ftse_tuple) {
-    snprintf(ftse_buffer, sizeof(conditions_buffer), "%s", ftse_tuple->value->cstring);
+    snprintf(ftse_buffer, sizeof(ftse_buffer), "%s", ftse_tuple->value->cstring);
   
     text_layer_set_text(s_ftse_layer, ftse_buffer);
   }
+
+  printf("****** before SXX %s",  sxx_buffer);
+  printf("****** before FTSE %s",  ftse_buffer);
+  printf("****** before str1 %s",  str1);
+  
+  strcpy(str1, sxx_buffer);
+  printf("****** after str1 %s",  str1);
+  strcat(str1, " ");
+  printf("****** after str1 %s",  str1);
+  strcat(str1, ftse_buffer);
+  printf("****** after str1 %s",  str1);
+  
+  text_layer_set_background_color(s_temp_layer, GColorBlack);
+  text_layer_set_text(s_temp_layer, str1);
+  
+  app_timer_register(3000, hide_big_screen, NULL );
 
 }
   

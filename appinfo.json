@@ -15,14 +15,14 @@
     "resources": {
         "media": [
             {
-                "characterRegex": "[a-z' \\-]",
+                "characterRegex": "[a-z' \\-?W]",
                 "file": "fonts/opensans4",
                 "name": "FONT_OPENSANS_36",
                 "targetPlatforms": null,
                 "type": "font"
             },
             {
-                "characterRegex": "[a-z'\\- ]",
+                "characterRegex": "[a-z'\\- 1234567890.+]",
                 "file": "fonts/opensans3",
                 "name": "FONT_OPENSANS_40",
                 "targetPlatforms": null,

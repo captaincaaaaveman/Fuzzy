@@ -15,6 +15,13 @@ function getStocks() {
   var url = "http://finance.google.com/finance/info?client=ig&q=SXX";
   var url2 = "http://finance.google.com/finance/info?client=ig&q=INDEXFTSE:UKX";
 
+  var d = new Date();
+
+  if (d.getHours() > 16 ) {
+    console.log("After 4:30hrs looking up DJI");
+    url2 = "http://finance.google.com/finance/info?client=ig&q=INDEXDJX:.DJI";
+  }
+  
   console.log('LOOKING UP...');
   console.log(url);
 
@@ -43,8 +50,7 @@ function getStocks() {
 
       // Assemble dictionary using our keys
       var dictionary = {
-        'KEY_TEMPERATURE': temperature,
-        'KEY_CONDITIONS': conditions
+        'KEY_SXX': conditions
       };
 
       // Send to Pebble
@@ -97,26 +103,13 @@ function getStocks() {
   );
 }
 
-function locationError(err) {
-  console.log("Error requesting location!");
-}
-
-function getWeather() {
-//   navigator.geolocation.getCurrentPosition(
-//     locationSuccess,
-//     locationError,
-//     {timeout: 15000, maximumAge: 60000}
-//   );
-    getStocks();
-}
-
 // Listen for when the watchface is opened
 Pebble.addEventListener('ready', 
   function(e) {
     console.log("PebbleKit JS ready!");
 
     // Get the initial weather
-    getWeather();
+    getStocks();
   }
 );
 
@@ -124,6 +117,6 @@ Pebble.addEventListener('ready',
 Pebble.addEventListener('appmessage',
   function(e) {
     console.log("AppMessage received!");
-    getWeather();
+    getStocks();
   }                     
 );
